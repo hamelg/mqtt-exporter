@@ -21,6 +21,23 @@ IGNORED_TOPICS = os.getenv("MQTT_IGNORED_TOPICS", "").split(",")
 prom_metrics = {}  # pylint: disable=C0103
 prom_msg_counter = Counter(f"{PREFIX}message_total", "Counter of received messages", [TOPIC_LABEL])
 
+def flatten_json(y):
+    out = {}
+
+    def flatten(x, name=''):
+        if type(x) is dict:
+            for a in x:
+                flatten(x[a], name + a + '_')
+        elif type(x) is list:
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + '_')
+                i += 1
+        else:
+            out[name[:-1]] = x
+
+    flatten(y)
+    return out
 
 def subscribe(client, userdata, flags, connection_result):  # pylint: disable=W0613
     """Subscribe to mqtt events (callback)."""
@@ -34,7 +51,7 @@ def expose_metrics(client, userdata, msg):  # pylint: disable=W0613
         LOG.debug('Topic "%s" was ignored', msg.topic)
         return
     try:
-        payload = json.loads(msg.payload)
+        payload = flatten_json(json.loads(msg.payload))
         topic = msg.topic.replace("/", "_")
     except json.JSONDecodeError:
         LOG.debug('failed to parse as JSON: "%s"', msg.payload)
